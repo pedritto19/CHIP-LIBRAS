@@ -2,6 +2,8 @@ import cv2
 import mediapipe as mp
 import csv
 import os
+import time
+import numpy as np
 
 # Inicializar MediaPipe Hands
 mp_hands = mp.solutions.hands
@@ -16,14 +18,16 @@ csv_file = "gestures_dataset.csv"
 if not os.path.exists(csv_file):
     with open(csv_file, "w", newline="") as file:
         writer = csv.writer(file)
-        header = [f"x{i}" for i in range(42)] + ["label"]
+        header = [f"x{i}" for i in range(63)] + ["timestamp", "movement", "flipped", "label"]
         writer.writerow(header)
 
 # Captura de vídeo
 cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)  # Ajusta a largura
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)  # Ajusta a altura
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
+# Variáveis para detectar movimentação
+last_hand_positions = None
 
 print(f"📸 Capturando gesto '{GESTO}', pressione 'q' para parar...")
 
@@ -42,14 +46,35 @@ with open(csv_file, "a", newline="") as file:
             for hand_landmarks in result.multi_hand_landmarks:
                 mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-                # Extrair pontos da mão
+                # Extrair pontos da mão (X, Y, Z)
                 hand_data = []
                 for lm in hand_landmarks.landmark:
                     hand_data.append(lm.x)
                     hand_data.append(lm.y)
-                
-                hand_data.append(GESTO)  # Adiciona o rótulo do gesto
-                writer.writerow(hand_data)
+                    hand_data.append(lm.z)  # Profundidade
+
+                # Calcular movimentação da mão
+                movement = 0
+                if last_hand_positions is not None:
+                    movement = np.linalg.norm(np.array(hand_data) - np.array(last_hand_positions))
+
+                last_hand_positions = hand_data.copy()
+
+                # Adicionar timestamp
+                timestamp = time.time()
+
+                # Salvar dados normais
+                writer.writerow(hand_data + [timestamp, movement, 0, GESTO])
+
+                # Criar versão espelhada (flip horizontal)
+                flipped_hand_data = []
+                for i in range(0, len(hand_data), 3):
+                    flipped_hand_data.append(1 - hand_data[i])  # Espelha apenas X
+                    flipped_hand_data.append(hand_data[i+1])
+                    flipped_hand_data.append(hand_data[i+2])
+
+                # Salvar dados espelhados
+                writer.writerow(flipped_hand_data + [timestamp, movement, 1, GESTO])
 
         cv2.imshow("Captura de Gesto", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):

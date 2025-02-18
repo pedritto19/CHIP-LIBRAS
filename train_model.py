@@ -5,17 +5,23 @@ import pickle
 
 # Carregar dataset
 csv_file = "gestures_dataset.csv"
-df = pd.read_csv(csv_file)
+df = pd.read_csv(csv_file, encoding="utf-8")
+
+# Garantir que estamos usando apenas as 65 features corretas
+if "timestamp" in df.columns:
+    df = df.drop(columns=["timestamp"])  # Remover timestamp
+if "flipped" in df.columns:
+    df = df.drop(columns=["flipped"])  # Remover flag de espelhamento
 
 # Separar features (X) e rótulos (y)
-X = df.iloc[:, :-1].values  # Landmarks da mão
+X = df.iloc[:, :-1].values  # Features corretas: 63 coordenadas + movimento
 y = df.iloc[:, -1].values   # Classe do gesto
 
 # Separar em treino e teste
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 # Treinar modelo RandomForest
-clf = RandomForestClassifier(n_estimators=100)
+clf = RandomForestClassifier(n_estimators=200, random_state=42)
 clf.fit(X_train, y_train)
 
 # Avaliação do modelo
