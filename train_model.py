@@ -7,14 +7,11 @@ import pickle
 csv_file = "gestures_dataset.csv"
 df = pd.read_csv(csv_file, encoding="utf-8")
 
-# Garantir que estamos usando apenas as 65 features corretas
-if "timestamp" in df.columns:
-    df = df.drop(columns=["timestamp"])  # Remover timestamp
-if "flipped" in df.columns:
-    df = df.drop(columns=["flipped"])  # Remover flag de espelhamento
+# Remover colunas desnecessárias
+df = df.drop(columns=["flipped"])  
 
 # Separar features (X) e rótulos (y)
-X = df.iloc[:, :-1].values  # Features corretas: 63 coordenadas + movimento
+X = df.iloc[:, :-1].values  # 63 coordenadas + movimentação
 y = df.iloc[:, -1].values   # Classe do gesto
 
 # Separar em treino e teste
