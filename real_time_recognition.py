@@ -4,6 +4,8 @@ import numpy as np
 import pickle
 from collections import deque, Counter
 import time
+from spellchecker import SpellChecker  # Biblioteca para correção ortográfica
+from rapidfuzz import fuzz, process  # Biblioteca para comparação de palavras
 
 # Carregar modelo treinado
 model_file = "gestures_model.pkl"
@@ -15,6 +17,10 @@ mp_hands = mp.solutions.hands
 mp_draw = mp.solutions.drawing_utils
 hands = mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_confidence=0.7)
 
+# Inicializar correção ortográfica e dicionário de palavras comuns
+spell = SpellChecker(language="pt")  # Português (troque para "en" se quiser em inglês)
+common_words = list(spell.word_frequency.keys()) # Palavras comuns do dicionário
+
 # Buffers e variáveis para controle da palavra formada
 frame_buffer = deque(maxlen=5)
 last_hand_positions = None
@@ -24,9 +30,37 @@ last_detected_time = time.time()
 min_time_per_letter = 1.0  # Tempo mínimo que um gesto deve permanecer para ser registrado
 gesture_start_time = None
 previous_letter = None  # Última letra adicionada à palavra
-letter_timestamps = {}  # Tempo que cada letra está sendo detectada
 stable_letter = None  # Letra atualmente estável
 stable_letter_start_time = None  # Tempo que a letra está estável
+
+def correct_word(word_str):
+    if not word_str:
+        return word_str
+    word_str = word_str.lower()
+    
+    # Se a palavra já for conhecida, retorna ela mesma
+    if word_str in common_words:
+        return word_str
+    
+    # Tenta corrigir usando SpellChecker
+    corrected = spell.correction(word_str)
+    
+    result = process.extractOne(word_str, common_words, scorer=fuzz.ratio)
+
+    # Se result for None, retorna a palavra original
+    if result is None:
+        return word_str  
+
+    best_match = result[0]  # Pegamos apenas a melhor correspondência
+    score = result[1] if len(result) > 1 else 0  # Evita erro se o resultado for menor que esperado
+    # Desempacota apenas se result for válido
+
+
+    # Se a melhor sugestão for muito parecida, usamos ela
+    if score > 80:  
+        return best_match
+    
+    return corrected if corrected else word_str  # Retorna a melhor opção encontrada 
 
 # Captura de vídeo
 cap = cv2.VideoCapture(0)
@@ -85,19 +119,24 @@ while True:
     else:
         # Se a mão sumir por mais de 1 segundo, finaliza a palavra
         if time.time() - last_detected_time > 1.0 and word:
-            print(f"✅ Palavra finalizada: {''.join(word)}")
+            raw_word = "".join(word)
+            corrected_word = correct_word(raw_word)  # Corrige a palavra
+            print(f"✅ Palavra finalizada: {raw_word} → Correção: {corrected_word}")
+            
             word.clear()  # Limpa a palavra para a próxima detecção
             previous_letter = None  # Reseta a última letra para evitar repetições
             stable_letter = None  # Reseta a estabilidade
 
     # Exibir a palavra formada na tela
-    cv2.putText(frame, f"Palavra: {''.join(word)}", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+    raw_word = "".join(word)
+    corrected_word = correct_word(raw_word)
+    cv2.putText(frame, f"Palavra: {corrected_word}", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
     cv2.imshow("Reconhecimento de Gestos", frame)
 
     # Se pressionar "q", finaliza e exibe a palavra final
     if cv2.waitKey(1) & 0xFF == ord('q'):
-        print(f"✅ Palavra formada: {''.join(word)}")
+        print(f"✅ Palavra formada: {corrected_word}")
         break
 
 cap.release()
