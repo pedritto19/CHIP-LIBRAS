@@ -1,5 +1,4 @@
 # CHIP-LIBRAS
  
-pip install opencv-python mediapipe numpy scikit-learn
+pip install requirements.txt
 
-fazer planilhas de testes om variados numeros de letras
